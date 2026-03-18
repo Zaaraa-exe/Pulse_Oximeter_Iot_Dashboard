@@ -291,6 +291,34 @@
       line-height: 1.5;
     }
 
+    .iot-copy {
+      margin-top: 10px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .chart-toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .filter-chip {
+      border: 1px solid var(--line);
+      background: #fffaf3;
+      color: var(--muted);
+      box-shadow: none;
+      padding: 10px 14px;
+    }
+
+    .filter-chip.active {
+      background: linear-gradient(135deg, var(--heart), #c74d61);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 10px 20px rgba(199, 77, 97, 0.2);
+    }
+
     .chart-card,
     .table-card {
       margin-bottom: 18px;
@@ -407,6 +435,11 @@
           If you make the channel public, this page can stay purely static on Vercel. If the channel is private, your read key will be visible in the browser, so public is simpler for hobby use.
         </div>
 
+        <h2 style="margin-top: 24px;">IoT Model</h2>
+        <div class="iot-copy">
+          This system uses an ESP8266-based pulse oximeter node to collect stabilized BPM and SpO2 measurements from the sensor layer, publish valid final readings to ThingSpeak, and surface the resulting historical stream through this web dashboard for remote monitoring and review.
+        </div>
+
         <h2 style="margin-top: 24px;">Profile</h2>
 
         <div class="field">
@@ -424,8 +457,8 @@
         </div>
 
         <div class="field">
-          <label for="height">Height (cm)</label>
-          <input id="height" type="number" min="80" max="250" placeholder="Example: 165">
+          <label for="weight">Weight (kg)</label>
+          <input id="weight" type="number" min="20" max="300" placeholder="Example: 60">
         </div>
 
         <div class="field">
@@ -462,6 +495,12 @@
 
         <section class="panel chart-card">
           <h2>History</h2>
+          <div class="chart-toolbar">
+            <button class="filter-chip active" data-range="today" id="filterToday">Today</button>
+            <button class="filter-chip" data-range="7d" id="filter7d">7 days</button>
+            <button class="filter-chip" data-range="30d" id="filter30d">30 days</button>
+            <button class="filter-chip" data-range="all" id="filterAll">All</button>
+          </div>
           <canvas id="historyChart" height="110"></canvas>
         </section>
 
@@ -493,7 +532,7 @@
       refreshSeconds: "30",
       age: "",
       sex: "female",
-      height: "",
+      weight: "",
       activityState: "resting"
     };
 
@@ -504,7 +543,7 @@
     const refreshSecondsInput = document.getElementById("refreshSeconds");
     const ageInput = document.getElementById("age");
     const sexInput = document.getElementById("sex");
-    const heightInput = document.getElementById("height");
+    const weightInput = document.getElementById("weight");
     const activityStateInput = document.getElementById("activityState");
     const loadBtn = document.getElementById("loadBtn");
     const saveBtn = document.getElementById("saveBtn");
@@ -517,9 +556,12 @@
     const expectedRangeEl = document.getElementById("expectedRange");
     const interpretationTitleEl = document.getElementById("interpretationTitle");
     const interpretationCopyEl = document.getElementById("interpretationCopy");
+    const filterButtons = [...document.querySelectorAll(".filter-chip")];
 
     let historyChart;
     let refreshTimer = null;
+    let latestReadings = [];
+    let activeRange = "today";
 
     function formatTime(value) {
       return new Date(value).toLocaleString();
@@ -545,7 +587,7 @@
         refreshSeconds: refreshSecondsInput.value.trim() || DEFAULT_CONFIG.refreshSeconds,
         age: ageInput.value.trim(),
         sex: sexInput.value,
-        height: heightInput.value.trim(),
+        weight: weightInput.value.trim(),
         activityState: activityStateInput.value
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -561,8 +603,39 @@
       refreshSecondsInput.value = config.refreshSeconds;
       ageInput.value = config.age;
       sexInput.value = config.sex;
-      heightInput.value = config.height;
+      weightInput.value = config.weight;
       activityStateInput.value = config.activityState;
+    }
+
+    function filterReadingsByRange(readings, range) {
+      if (range === "all") {
+        return readings;
+      }
+
+      const now = new Date();
+      let cutoff = new Date(now);
+
+      if (range === "today") {
+        cutoff.setHours(0, 0, 0, 0);
+      } else if (range === "7d") {
+        cutoff.setDate(cutoff.getDate() - 7);
+      } else if (range === "30d") {
+        cutoff.setDate(cutoff.getDate() - 30);
+      }
+
+      return readings.filter((entry) => new Date(entry.created_at) >= cutoff);
+    }
+
+    function applyRangeFilter(range) {
+      activeRange = range;
+      filterButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.range === range);
+      });
+
+      const filtered = filterReadingsByRange(latestReadings, range);
+      renderChart(filtered);
+      renderTable([...filtered].reverse());
+      setStatus(filtered.length ? `Showing ${filtered.length} readings for ${range === "all" ? "all time" : range}.` : "No readings found for the selected range.");
     }
 
     function getExpectedRange() {
@@ -610,7 +683,7 @@
       }
 
       const age = ageInput.value.trim();
-      const height = heightInput.value.trim();
+      const weight = weightInput.value.trim();
       const activityLabel = activityStateInput.options[activityStateInput.selectedIndex].text;
       const { low, high } = getExpectedRange();
       expectedRangeEl.textContent = `${low} - ${high} BPM`;
@@ -635,8 +708,8 @@
       if (age) {
         copy += ` Age setting: ${age}.`;
       }
-      if (height) {
-        copy += ` Height is stored for future longitudinal analysis, though it is not heavily weighted in this simple interpretation model yet.`;
+      if (weight) {
+        copy += ` Weight is stored for future longitudinal analysis, though it is not heavily weighted in this simple interpretation model yet.`;
       }
 
       interpretationTitleEl.textContent = title;
@@ -646,6 +719,15 @@
     }
 
     function renderTable(readings) {
+      if (!readings.length) {
+        historyTableEl.innerHTML = `
+          <tr>
+            <td colspan="4">No readings available for this time range.</td>
+          </tr>
+        `;
+        return;
+      }
+
       historyTableEl.innerHTML = readings.map((entry) => `
         <tr>
           <td>${formatTime(entry.created_at)}</td>
@@ -657,6 +739,14 @@
     }
 
     function renderChart(readings) {
+      if (!readings.length) {
+        if (historyChart) {
+          historyChart.destroy();
+          historyChart = null;
+        }
+        return;
+      }
+
       const labels = readings.map((entry) => formatTime(entry.created_at));
       const bpm = readings.map((entry) => Number(entry.field1));
       const spo2 = readings.map((entry) => Number(entry.field2));
@@ -774,10 +864,9 @@
           return;
         }
 
+        latestReadings = readings;
         updateLatest(readings);
-        renderChart(readings);
-        renderTable([...readings].reverse());
-        setStatus(`Loaded ${readings.length} readings.`);
+        applyRangeFilter(activeRange);
       } catch (error) {
         setStatus(`Failed to load ThingSpeak feed: ${error.message}`);
       }
@@ -802,12 +891,19 @@
     });
 
     saveBtn.addEventListener("click", saveConfig);
-    [ageInput, sexInput, heightInput, activityStateInput].forEach((input) => {
+    [ageInput, sexInput, weightInput, activityStateInput].forEach((input) => {
       input.addEventListener("change", () => {
         saveConfig();
         const latest = Number(latestBpmEl.textContent);
         if (!Number.isNaN(latest)) {
           renderInterpretation(latest);
+        }
+      });
+    });
+    filterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (latestReadings.length) {
+          applyRangeFilter(button.dataset.range);
         }
       });
     });

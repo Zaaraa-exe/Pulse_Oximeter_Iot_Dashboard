@@ -6,10 +6,10 @@
 #include "Adafruit_GFX.h"
 #include "OakOLED.h"
 
-char ssid[] = "Zaras";
-char pass[] = "township";
+char ssid[] = "YOUR_WIFI_NAME";
+char pass[] = "YOUR_WIFI_PASSWORD";
 const char *thingspeakHost = "http://api.thingspeak.com/update";
-const char *thingspeakWriteApiKey = "5FW7GTANZ6RCMLUN";
+const char *thingspeakWriteApiKey = "YOUR_THINGSPEAK_WRITE_API_KEY";
 
 PulseOximeter pox;
 OakOLED oled;
