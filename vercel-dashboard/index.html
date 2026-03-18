@@ -93,33 +93,19 @@
     }
 
     .heart-shape {
-      position: relative;
       width: 18px;
-      height: 16px;
-      transform: rotate(-45deg);
-      background: currentColor;
-      border-radius: 4px 0 0 0;
+      height: 18px;
+      display: inline-block;
+      flex: 0 0 auto;
+      transform-origin: center;
       animation: pulse 1.15s infinite;
     }
 
-    .heart-shape::before,
-    .heart-shape::after {
-      content: "";
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      background: currentColor;
-      border-radius: 50%;
-    }
-
-    .heart-shape::before {
-      top: -9px;
-      left: 0;
-    }
-
-    .heart-shape::after {
-      top: 0;
-      left: 9px;
+    .heart-shape svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      fill: currentColor;
     }
 
     @keyframes pulse {
@@ -170,6 +156,7 @@
     }
 
     .controls h2,
+    .insights h2,
     .chart-card h2,
     .table-card h2 {
       margin: 0 0 14px;
@@ -188,6 +175,16 @@
     }
 
     input {
+      width: 100%;
+      border-radius: 15px;
+      border: 1px solid #d8c4b1;
+      background: #fffdf9;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--ink);
+    }
+
+    select {
       width: 100%;
       border-radius: 15px;
       border: 1px solid #d8c4b1;
@@ -231,6 +228,67 @@
       border: 1px dashed #dcc2a4;
       color: #7a6659;
       font-size: 0.92rem;
+    }
+
+    .insight-card {
+      margin-bottom: 18px;
+    }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .insight-box {
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: var(--bg-soft);
+      padding: 16px;
+    }
+
+    .insight-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .insight-value {
+      margin-top: 8px;
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+
+    .range-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+
+    .range-normal {
+      background: rgba(47, 127, 120, 0.14);
+      color: var(--oxygen);
+    }
+
+    .range-low {
+      background: rgba(226, 168, 92, 0.18);
+      color: #a06a1e;
+    }
+
+    .range-high {
+      background: rgba(223, 90, 109, 0.14);
+      color: var(--heart);
+    }
+
+    .insight-copy {
+      margin-top: 12px;
+      color: var(--muted);
+      line-height: 1.5;
     }
 
     .chart-card,
@@ -288,12 +346,16 @@
   <div class="shell">
     <section class="hero">
       <div class="heart-badge">
-        <span class="heart-shape" aria-hidden="true"></span>
+        <span class="heart-shape" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+            <path d="M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54Z"/>
+          </svg>
+        </span>
         ThingSpeak-powered pulse dashboard
       </div>
       <h1>Pulse Oximeter IoT Dashboard</h1>
       <div class="subtitle">
-        A soft little dashboard for your ESP8266 pulse oximeter. It reads your final BPM and SpO2 values from ThingSpeak and turns them into a timeline you can open from anywhere.
+        A web dashboard for your ESP8266 pulse oximeter that retrieves finalized BPM and SpO2 measurements from ThingSpeak and presents them in a clear, timestamped history view accessible from any device.
       </div>
 
       <div class="stats">
@@ -344,9 +406,60 @@
         <div class="mini-note">
           If you make the channel public, this page can stay purely static on Vercel. If the channel is private, your read key will be visible in the browser, so public is simpler for hobby use.
         </div>
+
+        <h2 style="margin-top: 24px;">Profile</h2>
+
+        <div class="field">
+          <label for="age">Age</label>
+          <input id="age" type="number" min="5" max="120" placeholder="Example: 21">
+        </div>
+
+        <div class="field">
+          <label for="sex">Sex</label>
+          <select id="sex">
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="other">Other / Prefer not to say</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="height">Height (cm)</label>
+          <input id="height" type="number" min="80" max="250" placeholder="Example: 165">
+        </div>
+
+        <div class="field">
+          <label for="activityState">Reading Context</label>
+          <select id="activityState">
+            <option value="resting">Resting / seated</option>
+            <option value="light">Light activity</option>
+            <option value="active">Recently active</option>
+          </select>
+        </div>
       </aside>
 
       <main>
+        <section class="panel insights insight-card">
+          <h2>Personalized Interpretation</h2>
+          <div class="insight-grid">
+            <div class="insight-box">
+              <div class="insight-title">Current Range Status</div>
+              <div class="insight-value"><span id="rangeBadge" class="range-badge range-normal">Waiting for data</span></div>
+            </div>
+            <div class="insight-box">
+              <div class="insight-title">Expected Resting BPM Band</div>
+              <div class="insight-value" id="expectedRange">--</div>
+            </div>
+            <div class="insight-box">
+              <div class="insight-title">Interpretation</div>
+              <div class="insight-value" id="interpretationTitle">No reading yet</div>
+            </div>
+          </div>
+          <div class="insight-copy" id="interpretationCopy">
+            Once a recent reading is loaded, this area will compare it with a simple age- and context-based reference band. These insights are for general wellness tracking and not for diagnosis.
+          </div>
+        </section>
+
         <section class="panel chart-card">
           <h2>History</h2>
           <canvas id="historyChart" height="110"></canvas>
@@ -377,7 +490,11 @@
       channelId: "",
       readKey: "",
       results: "60",
-      refreshSeconds: "30"
+      refreshSeconds: "30",
+      age: "",
+      sex: "female",
+      height: "",
+      activityState: "resting"
     };
 
     const STORAGE_KEY = "pulse-garden-config";
@@ -385,6 +502,10 @@
     const readKeyInput = document.getElementById("readKey");
     const resultsInput = document.getElementById("results");
     const refreshSecondsInput = document.getElementById("refreshSeconds");
+    const ageInput = document.getElementById("age");
+    const sexInput = document.getElementById("sex");
+    const heightInput = document.getElementById("height");
+    const activityStateInput = document.getElementById("activityState");
     const loadBtn = document.getElementById("loadBtn");
     const saveBtn = document.getElementById("saveBtn");
     const statusEl = document.getElementById("status");
@@ -392,6 +513,10 @@
     const latestSpo2El = document.getElementById("latestSpo2");
     const latestTimeEl = document.getElementById("latestTime");
     const historyTableEl = document.getElementById("historyTable");
+    const rangeBadgeEl = document.getElementById("rangeBadge");
+    const expectedRangeEl = document.getElementById("expectedRange");
+    const interpretationTitleEl = document.getElementById("interpretationTitle");
+    const interpretationCopyEl = document.getElementById("interpretationCopy");
 
     let historyChart;
     let refreshTimer = null;
@@ -417,7 +542,11 @@
         channelId: channelIdInput.value.trim(),
         readKey: readKeyInput.value.trim(),
         results: resultsInput.value.trim() || DEFAULT_CONFIG.results,
-        refreshSeconds: refreshSecondsInput.value.trim() || DEFAULT_CONFIG.refreshSeconds
+        refreshSeconds: refreshSecondsInput.value.trim() || DEFAULT_CONFIG.refreshSeconds,
+        age: ageInput.value.trim(),
+        sex: sexInput.value,
+        height: heightInput.value.trim(),
+        activityState: activityStateInput.value
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       setStatus("Settings saved in this browser.");
@@ -430,6 +559,90 @@
       readKeyInput.value = config.readKey;
       resultsInput.value = config.results;
       refreshSecondsInput.value = config.refreshSeconds;
+      ageInput.value = config.age;
+      sexInput.value = config.sex;
+      heightInput.value = config.height;
+      activityStateInput.value = config.activityState;
+    }
+
+    function getExpectedRange() {
+      const age = Number(ageInput.value || "0");
+      const sex = sexInput.value;
+      const activityState = activityStateInput.value;
+
+      let low = 60;
+      let high = 100;
+
+      if (age > 0 && age < 18) {
+        low = 65;
+        high = 105;
+      } else if (age >= 18 && age <= 40) {
+        low = 60;
+        high = 95;
+      } else if (age > 40) {
+        low = 60;
+        high = 100;
+      }
+
+      if (sex === "female") {
+        high += 2;
+      }
+
+      if (activityState === "light") {
+        low += 8;
+        high += 12;
+      } else if (activityState === "active") {
+        low += 18;
+        high += 25;
+      }
+
+      return { low, high };
+    }
+
+    function renderInterpretation(latestBpm) {
+      if (!latestBpm || Number.isNaN(latestBpm)) {
+        expectedRangeEl.textContent = "--";
+        interpretationTitleEl.textContent = "No reading yet";
+        interpretationCopyEl.textContent = "Once a recent reading is loaded, this area will compare it with a simple age- and context-based reference band. These insights are for general wellness tracking and not for diagnosis.";
+        rangeBadgeEl.textContent = "Waiting for data";
+        rangeBadgeEl.className = "range-badge range-normal";
+        return;
+      }
+
+      const age = ageInput.value.trim();
+      const height = heightInput.value.trim();
+      const activityLabel = activityStateInput.options[activityStateInput.selectedIndex].text;
+      const { low, high } = getExpectedRange();
+      expectedRangeEl.textContent = `${low} - ${high} BPM`;
+
+      let title = "Within expected range";
+      let copy = `The latest reading of ${latestBpm.toFixed(1)} BPM falls within the expected band for the selected profile and activity context (${activityLabel}). Use this as a personal wellness reference rather than a diagnostic threshold.`;
+      let badgeText = "Within range";
+      let badgeClass = "range-badge range-normal";
+
+      if (latestBpm < low) {
+        title = "Below expected range";
+        copy = `The latest reading of ${latestBpm.toFixed(1)} BPM is below the estimated range of ${low}-${high} BPM for the selected profile and activity context (${activityLabel}). This can happen during relaxation, measurement instability, or individual variation.`;
+        badgeText = "Below range";
+        badgeClass = "range-badge range-low";
+      } else if (latestBpm > high) {
+        title = "Above expected range";
+        copy = `The latest reading of ${latestBpm.toFixed(1)} BPM is above the estimated range of ${low}-${high} BPM for the selected profile and activity context (${activityLabel}). Temporary elevation can be influenced by movement, stress, or recent activity.`;
+        badgeText = "Above range";
+        badgeClass = "range-badge range-high";
+      }
+
+      if (age) {
+        copy += ` Age setting: ${age}.`;
+      }
+      if (height) {
+        copy += ` Height is stored for future longitudinal analysis, though it is not heavily weighted in this simple interpretation model yet.`;
+      }
+
+      interpretationTitleEl.textContent = title;
+      interpretationCopyEl.textContent = copy;
+      rangeBadgeEl.textContent = badgeText;
+      rangeBadgeEl.className = badgeClass;
     }
 
     function renderTable(readings) {
@@ -518,6 +731,7 @@
       latestBpmEl.textContent = Number(latest.field1).toFixed(1);
       latestSpo2El.textContent = `${Number(latest.field2).toFixed(1)}%`;
       latestTimeEl.textContent = formatTime(latest.created_at);
+      renderInterpretation(Number(latest.field1));
     }
 
     async function loadHistory() {
@@ -588,8 +802,18 @@
     });
 
     saveBtn.addEventListener("click", saveConfig);
+    [ageInput, sexInput, heightInput, activityStateInput].forEach((input) => {
+      input.addEventListener("change", () => {
+        saveConfig();
+        const latest = Number(latestBpmEl.textContent);
+        if (!Number.isNaN(latest)) {
+          renderInterpretation(latest);
+        }
+      });
+    });
 
     hydrateInputs();
+    renderInterpretation(NaN);
     if (channelIdInput.value.trim()) {
       loadHistory();
       startAutoRefresh();
