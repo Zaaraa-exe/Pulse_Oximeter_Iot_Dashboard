@@ -38,6 +38,9 @@ float finalSpO2 = 0.0f;
 #define SAMPLE_INTERVAL_MS 500
 #define STARTUP_VALIDATION_SAMPLES 5
 #define MAX_CONSECUTIVE_REJECTS 8
+#define CLUSTER_LOCK_AFTER_SAMPLES 8
+#define CLUSTER_WINDOW_SAMPLES 6
+#define MAX_BPM_DEVIATION_FROM_CLUSTER 15.0f
 #define MAX_TRIMMED_BPM_RANGE_FOR_VALID_SCAN 17.0f
 #define FINAL_ANALYSIS_SAMPLES 20
 float bpmReadings[MAX_READINGS];
@@ -81,7 +84,7 @@ bool uploadToThingSpeak(float bpm, float spo2) {
     return false;
   }
 
-  if (strcmp(thingspeakWriteApiKey, "PASTE_YOUR_THINGSPEAK_WRITE_API_KEY") == 0) {
+  if (strcmp(thingspeakWriteApiKey, "YOUR_THINGSPEAK_WRITE_API_KEY") == 0) {
     Serial.println("ThingSpeak upload skipped: add your write API key");
     return false;
   }
@@ -214,6 +217,17 @@ void copyLastSamples(float *source, int totalCount, float *dest, int sampleCount
   }
 }
 
+float getRecentMedian(float *source, int totalCount, int windowSize) {
+  int sampleCount = totalCount;
+  if (sampleCount > windowSize) {
+    sampleCount = windowSize;
+  }
+
+  float recent[MAX_READINGS];
+  copyLastSamples(source, totalCount, recent, sampleCount);
+  return getMedian(recent, sampleCount);
+}
+
 bool isValidReading(float bpm, float spo2) {
   if (bpm < 40 || bpm > 180) {
     return false;
@@ -227,6 +241,13 @@ bool isValidReading(float bpm, float spo2) {
   // obvious startup spikes that poison the rest of the run.
   if (readingCount < STARTUP_VALIDATION_SAMPLES && bpm > 130) {
     return false;
+  }
+
+  if (readingCount >= CLUSTER_LOCK_AFTER_SAMPLES) {
+    float clusterMedian = getRecentMedian(bpmReadings, readingCount, CLUSTER_WINDOW_SAMPLES);
+    if (abs(bpm - clusterMedian) > MAX_BPM_DEVIATION_FROM_CLUSTER) {
+      return false;
+    }
   }
 
   if (readingCount >= STARTUP_VALIDATION_SAMPLES && lastValidBPM > 0 && abs(bpm - lastValidBPM) > 30) {
