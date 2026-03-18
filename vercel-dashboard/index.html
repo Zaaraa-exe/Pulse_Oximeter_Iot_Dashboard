@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pulse Oximeter IoT Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f7efe4;
+      --bg-soft: #fff8f1;
+      --card: rgba(255, 251, 245, 0.92);
+      --ink: #342621;
+      --muted: #75645c;
+      --line: #ead9c8;
+      --heart: #df5a6d;
+      --oxygen: #2f7f78;
+      --gold: #e2a85c;
+      --shadow: 0 18px 48px rgba(91, 58, 32, 0.11);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Trebuchet MS", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(255, 205, 190, 0.8), transparent 24%),
+        radial-gradient(circle at 90% 0%, rgba(252, 220, 230, 0.85), transparent 20%),
+        radial-gradient(circle at 90% 90%, rgba(209, 237, 232, 0.85), transparent 22%),
+        linear-gradient(180deg, var(--bg) 0%, #efe2d4 100%);
+      padding: 22px;
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .hero,
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 28px;
+      margin-bottom: 18px;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -60px;
+      top: -50px;
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle, rgba(223, 90, 109, 0.18), transparent 65%);
+      pointer-events: none;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2.4rem, 5vw, 4.4rem);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      max-width: 720px;
+      font-size: 1rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .heart-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(223, 90, 109, 0.1);
+      color: var(--heart);
+      border: 1px solid rgba(223, 90, 109, 0.18);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+    }
+
+    .heart-shape {
+      position: relative;
+      width: 18px;
+      height: 16px;
+      transform: rotate(-45deg);
+      background: currentColor;
+      border-radius: 4px 0 0 0;
+      animation: pulse 1.15s infinite;
+    }
+
+    .heart-shape::before,
+    .heart-shape::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: currentColor;
+      border-radius: 50%;
+    }
+
+    .heart-shape::before {
+      top: -9px;
+      left: 0;
+    }
+
+    .heart-shape::after {
+      top: 0;
+      left: 9px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: rotate(-45deg) scale(1); }
+      25% { transform: rotate(-45deg) scale(1.14); }
+      45% { transform: rotate(-45deg) scale(0.96); }
+      65% { transform: rotate(-45deg) scale(1.08); }
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .stat {
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+    }
+
+    .stat-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .stat-value {
+      margin-top: 8px;
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .bpm { color: var(--heart); }
+    .spo2 { color: var(--oxygen); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .controls h2,
+    .chart-card h2,
+    .table-card h2 {
+      margin: 0 0 14px;
+      font-size: 1.3rem;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      border-radius: 15px;
+      border: 1px solid #d8c4b1;
+      background: #fffdf9;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--ink);
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: linear-gradient(135deg, var(--heart), #c74d61);
+      color: white;
+      font: inherit;
+      cursor: pointer;
+      box-shadow: 0 12px 24px rgba(199, 77, 97, 0.2);
+    }
+
+    .secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      box-shadow: none;
+      margin-left: 8px;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .mini-note {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 18px;
+      background: #fff7ec;
+      border: 1px dashed #dcc2a4;
+      color: #7a6659;
+      font-size: 0.92rem;
+    }
+
+    .chart-card,
+    .table-card {
+      margin-bottom: 18px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 12px 8px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    th {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(47, 127, 120, 0.12);
+      color: var(--oxygen);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .hero, .panel { padding: 16px; border-radius: 22px; }
+      .secondary { margin-left: 0; margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="heart-badge">
+        <span class="heart-shape" aria-hidden="true"></span>
+        ThingSpeak-powered pulse dashboard
+      </div>
+      <h1>Pulse Oximeter IoT Dashboard</h1>
+      <div class="subtitle">
+        A soft little dashboard for your ESP8266 pulse oximeter. It reads your final BPM and SpO2 values from ThingSpeak and turns them into a timeline you can open from anywhere.
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Latest BPM</div>
+          <div class="stat-value bpm" id="latestBpm">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Latest SpO2</div>
+          <div class="stat-value spo2" id="latestSpo2">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Recorded At</div>
+          <div class="stat-value" style="font-size: 1.2rem;" id="latestTime">--</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <aside class="panel controls">
+        <h2>Channel Settings</h2>
+
+        <div class="field">
+          <label for="channelId">ThingSpeak Channel ID</label>
+          <input id="channelId" placeholder="Example: 1234567">
+        </div>
+
+        <div class="field">
+          <label for="readKey">Read API Key</label>
+          <input id="readKey" placeholder="Leave blank if your channel is public">
+        </div>
+
+        <div class="field">
+          <label for="results">How many entries to load</label>
+          <input id="results" type="number" min="10" max="200" value="60">
+        </div>
+
+        <div class="field">
+          <label for="refreshSeconds">Auto-refresh every X seconds</label>
+          <input id="refreshSeconds" type="number" min="0" max="300" value="30">
+        </div>
+
+        <button id="loadBtn">Load Dashboard</button>
+        <button id="saveBtn" class="secondary">Save Settings</button>
+
+        <div class="status" id="status">Add your channel details, then load the feed.</div>
+
+        <div class="mini-note">
+          If you make the channel public, this page can stay purely static on Vercel. If the channel is private, your read key will be visible in the browser, so public is simpler for hobby use.
+        </div>
+      </aside>
+
+      <main>
+        <section class="panel chart-card">
+          <h2>History</h2>
+          <canvas id="historyChart" height="110"></canvas>
+        </section>
+
+        <section class="panel table-card">
+          <h2>Recent Readings</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>BPM</th>
+                  <th>SpO2</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="historyTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_CONFIG = {
+      channelId: "",
+      readKey: "",
+      results: "60",
+      refreshSeconds: "30"
+    };
+
+    const STORAGE_KEY = "pulse-garden-config";
+    const channelIdInput = document.getElementById("channelId");
+    const readKeyInput = document.getElementById("readKey");
+    const resultsInput = document.getElementById("results");
+    const refreshSecondsInput = document.getElementById("refreshSeconds");
+    const loadBtn = document.getElementById("loadBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const statusEl = document.getElementById("status");
+    const latestBpmEl = document.getElementById("latestBpm");
+    const latestSpo2El = document.getElementById("latestSpo2");
+    const latestTimeEl = document.getElementById("latestTime");
+    const historyTableEl = document.getElementById("historyTable");
+
+    let historyChart;
+    let refreshTimer = null;
+
+    function formatTime(value) {
+      return new Date(value).toLocaleString();
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function loadSavedConfig() {
+      try {
+        return { ...DEFAULT_CONFIG, ...(JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}) };
+      } catch {
+        return { ...DEFAULT_CONFIG };
+      }
+    }
+
+    function saveConfig() {
+      const config = {
+        channelId: channelIdInput.value.trim(),
+        readKey: readKeyInput.value.trim(),
+        results: resultsInput.value.trim() || DEFAULT_CONFIG.results,
+        refreshSeconds: refreshSecondsInput.value.trim() || DEFAULT_CONFIG.refreshSeconds
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      setStatus("Settings saved in this browser.");
+      return config;
+    }
+
+    function hydrateInputs() {
+      const config = loadSavedConfig();
+      channelIdInput.value = config.channelId;
+      readKeyInput.value = config.readKey;
+      resultsInput.value = config.results;
+      refreshSecondsInput.value = config.refreshSeconds;
+    }
+
+    function renderTable(readings) {
+      historyTableEl.innerHTML = readings.map((entry) => `
+        <tr>
+          <td>${formatTime(entry.created_at)}</td>
+          <td>${Number(entry.field1).toFixed(1)}</td>
+          <td>${Number(entry.field2).toFixed(1)}%</td>
+          <td><span class="tag">${entry.status || "stable"}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function renderChart(readings) {
+      const labels = readings.map((entry) => formatTime(entry.created_at));
+      const bpm = readings.map((entry) => Number(entry.field1));
+      const spo2 = readings.map((entry) => Number(entry.field2));
+
+      if (historyChart) {
+        historyChart.destroy();
+      }
+
+      historyChart = new Chart(document.getElementById("historyChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "BPM",
+              data: bpm,
+              borderColor: "#df5a6d",
+              backgroundColor: "rgba(223, 90, 109, 0.14)",
+              borderWidth: 3,
+              pointRadius: 2.8,
+              pointHoverRadius: 4,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: "SpO2",
+              data: spo2,
+              borderColor: "#2f7f78",
+              backgroundColor: "rgba(47, 127, 120, 0.12)",
+              borderWidth: 3,
+              pointRadius: 2.8,
+              pointHoverRadius: 4,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top"
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false,
+              ticks: {
+                color: "#6f5e55"
+              },
+              grid: {
+                color: "rgba(120, 92, 72, 0.09)"
+              }
+            },
+            x: {
+              ticks: {
+                color: "#6f5e55",
+                maxRotation: 0,
+                autoSkip: true
+              },
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateLatest(readings) {
+      const latest = readings[readings.length - 1];
+      latestBpmEl.textContent = Number(latest.field1).toFixed(1);
+      latestSpo2El.textContent = `${Number(latest.field2).toFixed(1)}%`;
+      latestTimeEl.textContent = formatTime(latest.created_at);
+    }
+
+    async function loadHistory() {
+      const channelId = channelIdInput.value.trim();
+      const readKey = readKeyInput.value.trim();
+      const results = resultsInput.value.trim() || "60";
+
+      if (!channelId) {
+        setStatus("Add your ThingSpeak channel ID first.");
+        return;
+      }
+
+      const params = new URLSearchParams({ results });
+      if (readKey) {
+        params.set("api_key", readKey);
+      }
+
+      const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?${params.toString()}`;
+      setStatus("Loading history...");
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const readings = (data.feeds || []).filter((entry) => entry.field1 && entry.field2);
+
+        if (!readings.length) {
+          latestBpmEl.textContent = "--";
+          latestSpo2El.textContent = "--";
+          latestTimeEl.textContent = "--";
+          historyTableEl.innerHTML = "";
+          if (historyChart) {
+            historyChart.destroy();
+            historyChart = null;
+          }
+          setStatus("No readings found yet.");
+          return;
+        }
+
+        updateLatest(readings);
+        renderChart(readings);
+        renderTable([...readings].reverse());
+        setStatus(`Loaded ${readings.length} readings.`);
+      } catch (error) {
+        setStatus(`Failed to load ThingSpeak feed: ${error.message}`);
+      }
+    }
+
+    function startAutoRefresh() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+
+      const seconds = Number(refreshSecondsInput.value || "0");
+      if (seconds > 0) {
+        refreshTimer = setInterval(loadHistory, seconds * 1000);
+      }
+    }
+
+    loadBtn.addEventListener("click", () => {
+      saveConfig();
+      loadHistory();
+      startAutoRefresh();
+    });
+
+    saveBtn.addEventListener("click", saveConfig);
+
+    hydrateInputs();
+    if (channelIdInput.value.trim()) {
+      loadHistory();
+      startAutoRefresh();
+    }
+  </script>
+</body>
+</html>

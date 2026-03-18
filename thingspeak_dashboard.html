@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pulse History</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f7f1e8;
+      --card: #fffaf3;
+      --ink: #2f241f;
+      --accent: #d95763;
+      --accent-2: #3f7d6b;
+      --line: #e4d5c5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Trebuchet MS", serif;
+      background:
+        radial-gradient(circle at top left, #ffe9da 0, transparent 28%),
+        radial-gradient(circle at top right, #f8d9df 0, transparent 22%),
+        linear-gradient(180deg, var(--bg), #efe6da);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .hero, .card {
+      background: rgba(255, 250, 243, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 14px 40px rgba(70, 42, 20, 0.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1;
+    }
+
+    p {
+      margin: 0;
+      color: #5b4d45;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .stat {
+      padding: 18px;
+      border-radius: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+    }
+
+    .label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7b6c63;
+    }
+
+    .value {
+      margin-top: 8px;
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .accent { color: var(--accent); }
+    .accent2 { color: var(--accent-2); }
+
+    .controls, .chart-card, .table-card {
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      color: #695850;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid #cfbca9;
+      background: #fffdf9;
+      font: inherit;
+    }
+
+    button {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 20px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7b6c63;
+    }
+
+    .muted {
+      color: #7b6c63;
+      font-size: 0.95rem;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 22px;
+      color: #7b6c63;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 14px; }
+      .hero, .controls, .chart-card, .table-card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Pulse History</h1>
+      <p>Your ESP8266 can push final BPM and SpO2 readings to ThingSpeak. This page reads them back and turns them into a clean dashboard.</p>
+      <div class="grid">
+        <div class="stat">
+          <div class="label">Latest BPM</div>
+          <div class="value accent" id="latestBpm">--</div>
+        </div>
+        <div class="stat">
+          <div class="label">Latest SpO2</div>
+          <div class="value accent2" id="latestSpo2">--</div>
+        </div>
+        <div class="stat">
+          <div class="label">Last Timestamp</div>
+          <div class="value" style="font-size:1.2rem" id="latestTime">--</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card controls">
+      <div class="controls-grid">
+        <div>
+          <label for="channelId">ThingSpeak Channel ID</label>
+          <input id="channelId" placeholder="e.g. 1234567">
+        </div>
+        <div>
+          <label for="readKey">Read API Key</label>
+          <input id="readKey" placeholder="Leave blank if channel is public">
+        </div>
+        <div>
+          <label for="results">Rows to load</label>
+          <input id="results" type="number" min="10" max="200" value="50">
+        </div>
+      </div>
+      <button id="loadBtn">Load History</button>
+      <div class="status" id="status">Enter your channel info and load the feed.</div>
+    </section>
+
+    <section class="card chart-card">
+      <canvas id="historyChart" height="120"></canvas>
+    </section>
+
+    <section class="card table-card">
+      <div class="muted">Newest readings first</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>BPM</th>
+            <th>SpO2</th>
+          </tr>
+        </thead>
+        <tbody id="historyTable"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const channelIdInput = document.getElementById("channelId");
+    const readKeyInput = document.getElementById("readKey");
+    const resultsInput = document.getElementById("results");
+    const loadBtn = document.getElementById("loadBtn");
+    const statusEl = document.getElementById("status");
+    const latestBpmEl = document.getElementById("latestBpm");
+    const latestSpo2El = document.getElementById("latestSpo2");
+    const latestTimeEl = document.getElementById("latestTime");
+    const historyTableEl = document.getElementById("historyTable");
+
+    let historyChart;
+
+    function formatTime(isoString) {
+      return new Date(isoString).toLocaleString();
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function renderTable(readings) {
+      historyTableEl.innerHTML = readings.map((entry) => `
+        <tr>
+          <td>${formatTime(entry.created_at)}</td>
+          <td>${entry.field1 ?? "--"}</td>
+          <td>${entry.field2 ?? "--"}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderChart(readings) {
+      const labels = readings.map((entry) => formatTime(entry.created_at));
+      const bpm = readings.map((entry) => Number(entry.field1));
+      const spo2 = readings.map((entry) => Number(entry.field2));
+
+      if (historyChart) {
+        historyChart.destroy();
+      }
+
+      historyChart = new Chart(document.getElementById("historyChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "BPM",
+              data: bpm,
+              borderColor: "#d95763",
+              backgroundColor: "rgba(217, 87, 99, 0.14)",
+              tension: 0.28,
+              fill: true
+            },
+            {
+              label: "SpO2",
+              data: spo2,
+              borderColor: "#3f7d6b",
+              backgroundColor: "rgba(63, 125, 107, 0.12)",
+              tension: 0.28,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: "top"
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+
+    async function loadHistory() {
+      const channelId = channelIdInput.value.trim();
+      const readKey = readKeyInput.value.trim();
+      const results = resultsInput.value.trim() || "50";
+
+      if (!channelId) {
+        setStatus("Add a ThingSpeak channel ID first.");
+        return;
+      }
+
+      const params = new URLSearchParams({ results });
+      if (readKey) {
+        params.set("api_key", readKey);
+      }
+
+      const url = `https://api.thingspeak.com/channels/${channelId}/feeds.json?${params.toString()}`;
+      setStatus("Loading...");
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const readings = (data.feeds || []).filter((entry) => entry.field1 && entry.field2);
+
+        if (!readings.length) {
+          setStatus("No readings found yet.");
+          historyTableEl.innerHTML = "";
+          latestBpmEl.textContent = "--";
+          latestSpo2El.textContent = "--";
+          latestTimeEl.textContent = "--";
+          if (historyChart) {
+            historyChart.destroy();
+            historyChart = null;
+          }
+          return;
+        }
+
+        const latest = readings[readings.length - 1];
+        latestBpmEl.textContent = Number(latest.field1).toFixed(1);
+        latestSpo2El.textContent = `${Number(latest.field2).toFixed(1)}%`;
+        latestTimeEl.textContent = formatTime(latest.created_at);
+
+        renderChart(readings);
+        renderTable([...readings].reverse());
+        setStatus(`Loaded ${readings.length} readings from ThingSpeak.`);
+      } catch (error) {
+        setStatus(`Failed to load feed: ${error.message}`);
+      }
+    }
+
+    loadBtn.addEventListener("click", loadHistory);
+  </script>
+</body>
+</html>
